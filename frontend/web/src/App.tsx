@@ -46,50 +46,34 @@ export default function App() {
   const [participantInfo, setParticipantInfo] = useState<ParticipantInfo | null>(null);
   const [activeMeetings, setActiveMeetings] = useState<number[]>([]);
 
-  const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7"; // Sepolia Testnet chainId (hex)
-  const SEPOLIA_CHAIN_ID_DEC = 11155111;   // Sepolia Testnet chainId (decimal)
+  useEffect(() => {
+    loadMeetings().finally(() => setLoading(false));
+  }, []);
 
-  // Helper: ensure wallet is on Sepolia
-  const ensureSepoliaNetwork = async (walletProvider: any) => {
+  const onWalletSelect = async (wallet: any) => {
+    if (!wallet.provider) return;
     try {
-      const chainId = await walletProvider.request({ method: "eth_chainId" });
-      if (chainId !== SEPOLIA_CHAIN_ID_HEX) {
-        try {
-          // Try to switch to Sepolia
-          await walletProvider.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
-          });
-        } catch (switchError: any) {
-          if (switchError.code === 4902) {
-            // If Sepolia is not added, add it
-            await walletProvider.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: SEPOLIA_CHAIN_ID_HEX,
-                  chainName: "Sepolia Test Network",
-                  rpcUrls: [config.network], // from config.json
-                  nativeCurrency: {
-                    name: "SepoliaETH",
-                    symbol: "ETH",
-                    decimals: 18,
-                  },
-                  blockExplorerUrls: ["https://sepolia.etherscan.io"],
-                },
-              ],
-            });
-          } else {
-            throw switchError;
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Failed to ensure Sepolia network", err);
-      throw new Error("Please switch to Sepolia testnet in your wallet.");
+      const web3Provider = new ethers.BrowserProvider(wallet.provider);
+      setProvider(web3Provider);
+      const accounts = await web3Provider.send("eth_requestAccounts", []);
+      const acc = accounts[0] || "";
+      setAccount(acc);
+
+      wallet.provider.on("accountsChanged", async (accounts: string[]) => {
+        const newAcc = accounts[0] || "";
+        setAccount(newAcc);
+      });
+    } catch (e) {
+      console.error("Failed to connect wallet", e);
+      alert("Failed to connect wallet: " + e);
     }
   };
 
+  const onConnect = () => setWalletSelectorOpen(true);
+  const onDisconnect = () => {
+    setAccount("");
+    setProvider(null);
+  };
 
   // ----------------- Load Meetings -----------------
   const loadMeetings = async () => {
@@ -169,44 +153,6 @@ export default function App() {
     } catch (e) {
       console.error("Failed to load meetings", e);
     }
-  };
-
-  useEffect(() => {
-    loadMeetings().finally(() => setLoading(false));
-  }, []);
-
-  const onWalletSelect = async (wallet: any) => {
-    if (!wallet.provider) return;
-    try {
-      await ensureSepoliaNetwork(wallet.provider);
-  
-      const web3Provider = new ethers.BrowserProvider(wallet.provider);
-      setProvider(web3Provider);
-  
-      const accounts = await web3Provider.send("eth_requestAccounts", []);
-      const acc = accounts[0] || "";
-      setAccount(acc);
-  
-      wallet.provider.on("accountsChanged", async (accounts: string[]) => {
-        const newAcc = accounts[0] || "";
-        setAccount(newAcc);
-      });
-  
-      wallet.provider.on("chainChanged", async (chainId: string) => {
-        if (parseInt(chainId, 16) !== SEPOLIA_CHAIN_ID_DEC) {
-          alert("Please switch back to Sepolia Test Network!");
-        }
-      });
-    } catch (e) {
-      console.error("Failed to connect wallet", e);
-      alert("Failed to connect wallet: " + e);
-    }
-  };
-  
-  const onConnect = () => setWalletSelectorOpen(true);
-  const onDisconnect = () => {
-    setAccount("");
-    setProvider(null);
   };
 
   const createMeeting = async (title: string, maxParticipants: number) => {

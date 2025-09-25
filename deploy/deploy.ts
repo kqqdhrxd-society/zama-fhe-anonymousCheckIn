@@ -39,7 +39,7 @@ async function main() {
     console.warn("Frontend src directory not found, skipping config.json write:", frontendConfigDir);
   } else {
     const config = {
-      network: rpc,
+      network: "https://sepolia.g.alchemy.com/v2/",
       contractAddress: deployedAddress,
       deployer: wallet.address,
     };

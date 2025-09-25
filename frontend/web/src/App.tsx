@@ -64,8 +64,7 @@ export default function App() {
         setAccount(newAcc);
       });
     } catch (e) {
-      console.error("Failed to connect wallet", e);
-      alert("Failed to connect wallet: " + e);
+      alert("Failed to connect wallet");
     }
   };
 
@@ -85,15 +84,12 @@ export default function App() {
       try {
         const nextIdResult = await contract.nextMeetingId();
         nextId = Number(nextIdResult);
-        console.log("nextMeetingId result:", nextId);
       } catch (e) {
-        console.error("Failed to get nextMeetingId", e);
-
         try {
           const allMeetings = await contract.getAllMeetings();
           nextId = allMeetings.length + 1;
         } catch (fallbackError) {
-          console.error("Fallback method failed", fallbackError);
+          // 忽略错误
         }
       }
 
@@ -102,8 +98,6 @@ export default function App() {
         const activeIds = await contract.getActiveMeetings();
         activeMeetingIds = activeIds.map(id => Number(id));
       } catch (e) {
-        console.error("Failed to get active meetings", e);
-
         activeMeetingIds = [];
       }
       setActiveMeetings(activeMeetingIds);
@@ -130,8 +124,6 @@ export default function App() {
                 Date.now()/1000 - Number(meetingDetails.startTime)
             });
           } catch (e) {
-            console.error(`Failed to load meeting ${id}`, e);
-            
             list.push({
               id,
               creator: "0x0000000000000000000000000000000000000000",
@@ -151,7 +143,7 @@ export default function App() {
       list.sort((a, b) => a.id - b.id);
       setMeetings(list);
     } catch (e) {
-      console.error("Failed to load meetings", e);
+      // 忽略错误
     }
   };
 
@@ -179,7 +171,7 @@ export default function App() {
       await loadMeetings();
       alert("Meeting created successfully!");
     } catch (e: any) {
-      alert("Creation failed: " + (e?.message || e));
+      alert("Creation failed");
     } finally {
       setCreating(false);
     }
@@ -205,8 +197,7 @@ export default function App() {
       await loadMeetings();
       alert("Check-in successful!");
     } catch (e: any) {
-      console.error("Check-in failed", e);
-      alert("Check-in failed: " + (e?.message || e));
+      alert("Check-in failed");
     }
   };
 
@@ -228,8 +219,7 @@ export default function App() {
       await loadMeetings();
       alert("Meeting ended successfully!");
     } catch (e: any) {
-      console.error("End meeting failed", e);
-      alert("Failed to end meeting: " + (e?.message || e));
+      alert("Failed to end meeting");
     }
   };
 
@@ -244,7 +234,7 @@ export default function App() {
         checkInTime: 0 // Not available in simplified contract
       });
     } catch (e: any) {
-      alert("Failed to get participant info: " + (e?.message || e));
+      alert("Failed to get participant info");
     }
   };
 

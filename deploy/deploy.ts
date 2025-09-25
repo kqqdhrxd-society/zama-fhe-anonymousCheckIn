@@ -17,8 +17,8 @@ async function ask(prompt: string): Promise<string> {
 
 async function main() {
   const privateKey = await ask("Enter the deployer private key (testnet only): ");
-  let rpc = await ask("Enter the RPC URL (press Enter to use public Sepolia: https://sepolia.drpc.org): ");
-  if (!rpc) rpc = "https://sepolia.drpc.org";
+  let rpc = await ask("Enter the RPC URL (press Enter to use public Sepolia: https://rpc.sepolia.org): ");
+  if (!rpc) rpc = "https://rpc.sepolia.org";
 
   const provider = new JsonRpcProvider(rpc);
   const wallet = new Wallet(privateKey, provider);

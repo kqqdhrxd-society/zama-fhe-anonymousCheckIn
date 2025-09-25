@@ -50,109 +50,81 @@ export default function App() {
   const loadMeetings = async () => {
     try {
       const contract = await getContractReadOnly();
-      if (!contract) {
-        console.error("getContractReadOnly() returned null");
-        return;
-      }
-  
-      // 打印 provider、地址和 ABI 中的函数
-      const provider = contract.runner?.provider;
-      if (provider) {
-        const network = await provider.getNetwork();
-        console.log("Connected network:", network);
-      }
-      console.log("Using contract address:", contract.target);
-      console.log("ABI fragments:", contract.interface.fragments);
-  
-      // 确认地址是否有部署合约
-      if (provider) {
-        const code = await provider.getCode(contract.target);
-        console.log("Contract code length:", code.length, "starts with:", code.slice(0, 10));
-      }
-  
+      if (!contract) return;
+      
       let nextId = 1;
       try {
-        console.log("Calling nextMeetingId...");
         const nextIdResult = await contract.nextMeetingId();
-        console.log("Raw nextMeetingId result:", nextIdResult);
         nextId = Number(nextIdResult);
-        console.log("Parsed nextMeetingId:", nextId);
+        console.log("nextMeetingId result:", nextId);
       } catch (e) {
         console.error("Failed to get nextMeetingId", e);
-  
+
         try {
-          console.log("Falling back to getAllMeetings...");
           const allMeetings = await contract.getAllMeetings();
-          console.log("Raw allMeetings:", allMeetings);
           nextId = allMeetings.length + 1;
         } catch (fallbackError) {
           console.error("Fallback method failed", fallbackError);
         }
       }
-  
+
       let activeMeetingIds: number[] = [];
       try {
-        console.log("Calling getActiveMeetings...");
         const activeIds = await contract.getActiveMeetings();
-        console.log("Raw activeIds:", activeIds);
-        activeMeetingIds = activeIds.map((id) => Number(id));
+        activeMeetingIds = activeIds.map(id => Number(id));
       } catch (e) {
         console.error("Failed to get active meetings", e);
+
         activeMeetingIds = [];
       }
       setActiveMeetings(activeMeetingIds);
-  
+      
       const list: Meeting[] = [];
       const loadPromises: Promise<void>[] = [];
-  
+      
       for (let i = 1; i < nextId; i++) {
-        loadPromises.push(
-          (async (id) => {
-            try {
-              console.log(`Calling getMeetingDetails(${id})...`);
-              const meetingDetails = await contract.getMeetingDetails(id);
-              console.log(`Meeting ${id} details:`, meetingDetails);
-  
-              list.push({
-                id,
-                creator: meetingDetails.creator,
-                title: meetingDetails.title,
-                startTime: Number(meetingDetails.startTime),
-                endTime: Number(meetingDetails.endTime),
-                maxParticipants: Number(meetingDetails.maxParticipants),
-                participantCount: Number(meetingDetails.participantCount),
-                status: Number(meetingDetails.status),
-                duration:
-                  meetingDetails.endTime > 0
-                    ? Number(meetingDetails.endTime) - Number(meetingDetails.startTime)
-                    : Date.now() / 1000 - Number(meetingDetails.startTime),
-              });
-            } catch (e) {
-              console.error(`Failed to load meeting ${id}`, e);
-  
-              list.push({
-                id,
-                creator: "0x0000000000000000000000000000000000000000",
-                title: "Invalid Meeting",
-                startTime: 0,
-                endTime: 0,
-                maxParticipants: 0,
-                participantCount: 0,
-                status: 1, // ENDED
-              });
-            }
-          })(i),
-        );
+        loadPromises.push((async (id) => {
+          try {
+            const meetingDetails = await contract.getMeetingDetails(id);
+            
+            list.push({
+              id,
+              creator: meetingDetails.creator,
+              title: meetingDetails.title,
+              startTime: Number(meetingDetails.startTime),
+              endTime: Number(meetingDetails.endTime),
+              maxParticipants: Number(meetingDetails.maxParticipants),
+              participantCount: Number(meetingDetails.participantCount),
+              status: Number(meetingDetails.status),
+              duration: meetingDetails.endTime > 0 ? 
+                Number(meetingDetails.endTime) - Number(meetingDetails.startTime) : 
+                Date.now()/1000 - Number(meetingDetails.startTime)
+            });
+          } catch (e) {
+            console.error(`Failed to load meeting ${id}`, e);
+            
+            list.push({
+              id,
+              creator: "0x0000000000000000000000000000000000000000",
+              title: "Invalid Meeting",
+              startTime: 0,
+              endTime: 0,
+              maxParticipants: 0,
+              participantCount: 0,
+              status: 1, // ENDED
+            });
+          }
+        })(i));
       }
-  
+      
       await Promise.all(loadPromises);
-  
+      
       list.sort((a, b) => a.id - b.id);
       setMeetings(list);
     } catch (e) {
       console.error("Failed to load meetings", e);
     }
-  };  
+  };
 
   useEffect(() => {
     loadMeetings().finally(() => setLoading(false));

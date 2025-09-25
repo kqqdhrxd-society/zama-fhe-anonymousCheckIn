@@ -81,61 +81,74 @@ export default function App() {
       const contract = await getContractReadOnly();
       if (!contract) return;
       
-      let nextId = 0;
+      let nextId = 1;
       try {
         const nextIdResult = await contract.nextMeetingId();
         nextId = Number(nextIdResult);
+        console.log("nextMeetingId result:", nextId);
       } catch (e) {
         console.error("Failed to get nextMeetingId", e);
-        nextId = 1;
+
+        try {
+          const allMeetings = await contract.getAllMeetings();
+          nextId = allMeetings.length + 1;
+        } catch (fallbackError) {
+          console.error("Fallback method failed", fallbackError);
+        }
       }
-      
-      const list: Meeting[] = [];
-      
+
       let activeMeetingIds: number[] = [];
       try {
         const activeIds = await contract.getActiveMeetings();
         activeMeetingIds = activeIds.map(id => Number(id));
       } catch (e) {
         console.error("Failed to get active meetings", e);
+
+        activeMeetingIds = [];
       }
       setActiveMeetings(activeMeetingIds);
       
-      if (nextId <= 0) nextId = 1;
+      const list: Meeting[] = [];
+      const loadPromises: Promise<void>[] = [];
       
       for (let i = 1; i < nextId; i++) {
-        try {
-          const meetingDetails = await contract.getMeetingDetails(i);
-          
-          list.push({
-            id: i,
-            creator: meetingDetails.creator,
-            title: meetingDetails.title,
-            startTime: Number(meetingDetails.startTime),
-            endTime: Number(meetingDetails.endTime),
-            maxParticipants: Number(meetingDetails.maxParticipants),
-            participantCount: Number(meetingDetails.participantCount),
-            status: Number(meetingDetails.status),
-            duration: meetingDetails.endTime > 0 ? 
-              Number(meetingDetails.endTime) - Number(meetingDetails.startTime) : 
-              Date.now()/1000 - Number(meetingDetails.startTime)
-          });
-        } catch (e) {
-          console.error(`Failed to load meeting ${i}`, e);
-          
-          list.push({
-            id: i,
-            creator: "0x0000000000000000000000000000000000000000",
-            title: "Invalid Meeting",
-            startTime: 0,
-            endTime: 0,
-            maxParticipants: 0,
-            participantCount: 0,
-            status: 1, // ENDED
-          });
-        }
+        loadPromises.push((async (id) => {
+          try {
+            const meetingDetails = await contract.getMeetingDetails(id);
+            
+            list.push({
+              id,
+              creator: meetingDetails.creator,
+              title: meetingDetails.title,
+              startTime: Number(meetingDetails.startTime),
+              endTime: Number(meetingDetails.endTime),
+              maxParticipants: Number(meetingDetails.maxParticipants),
+              participantCount: Number(meetingDetails.participantCount),
+              status: Number(meetingDetails.status),
+              duration: meetingDetails.endTime > 0 ? 
+                Number(meetingDetails.endTime) - Number(meetingDetails.startTime) : 
+                Date.now()/1000 - Number(meetingDetails.startTime)
+            });
+          } catch (e) {
+            console.error(`Failed to load meeting ${id}`, e);
+            
+            list.push({
+              id,
+              creator: "0x0000000000000000000000000000000000000000",
+              title: "Invalid Meeting",
+              startTime: 0,
+              endTime: 0,
+              maxParticipants: 0,
+              participantCount: 0,
+              status: 1, // ENDED
+            });
+          }
+        })(i));
       }
       
+      await Promise.all(loadPromises);
+      
+      list.sort((a, b) => a.id - b.id);
       setMeetings(list);
     } catch (e) {
       console.error("Failed to load meetings", e);

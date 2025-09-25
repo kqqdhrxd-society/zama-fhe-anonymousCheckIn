@@ -46,8 +46,139 @@ export default function App() {
   const [participantInfo, setParticipantInfo] = useState<ParticipantInfo | null>(null);
   const [activeMeetings, setActiveMeetings] = useState<number[]>([]);
 
+  const diagnoseNetwork = async () => {
+    console.group("=== NETWORK DIAGNOSIS ===");
+    
+    try {
+      if (typeof window === 'undefined' || typeof window.ethereum === 'undefined') {
+        console.error("❌ No Ethereum provider found in window.ethereum");
+        return;
+      }
+      console.log("✅ Ethereum provider found");
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      
+      try {
+        const network = await provider.getNetwork();
+        console.log("Network info:", {
+          name: network.name,
+          chainId: network.chainId.toString(),
+          isSepolia: network.chainId === 11155111n
+        });
+        
+        if (network.chainId !== 11155111n) {
+          console.error("❌ Not connected to Sepolia network");
+        } else {
+          console.log("✅ Connected to Sepolia network");
+        }
+      } catch (e) {
+        console.error("Failed to get network info:", e);
+      }
+      
+      console.log("Contract address from config:", config.contractAddress);
+      
+      try {
+        const code = await provider.getCode(config.contractAddress);
+        console.log("Contract code:", code !== "0x" ? "✅ Exists" : "❌ Does not exist");
+        console.log("Code length:", code.length);
+        
+        if (code === "0x") {
+          console.error("❌ No contract code at this address");
+        }
+      } catch (e) {
+        console.error("Failed to get contract code:", e);
+      }
+      
+      try {
+        const accounts = await provider.send("eth_accounts", []);
+        console.log("Connected accounts:", accounts);
+        
+        if (accounts.length > 0) {
+          console.log("✅ Wallet connected");
+        } else {
+          console.log("⚠️ Wallet not connected");
+        }
+      } catch (e) {
+        console.error("Failed to get accounts:", e);
+      }
+      
+      try {
+        const simpleContract = new ethers.Contract(
+          config.contractAddress,
+          ["function getOwner() external view returns (address)"],
+          provider
+        );
+        
+        console.log("Testing getOwner function...");
+        const owner = await simpleContract.getOwner();
+        console.log("✅ getOwner result:", owner);
+      } catch (e) {
+        console.error("❌ getOwner call failed:", e);
+      }
+      
+      try {
+        const contract = new ethers.Contract(
+          config.contractAddress,
+          ABI,
+          provider
+        );
+        
+        console.log("Testing getAllClientIds function...");
+        const clientIds = await contract.getAllClientIds();
+        console.log("✅ getAllClientIds result:", clientIds);
+      } catch (e) {
+        console.error("❌ getAllClientIds call failed:", e);
+        
+        try {
+          console.log("Attempting low-level call...");
+          
+          const contract = new ethers.Contract(
+            config.contractAddress,
+            ABI,
+            provider
+          );
+          
+          const fragment = contract.interface.getFunction("getAllClientIds");
+          
+          if (!fragment) {
+            console.error("❌ Function 'getAllClientIds' not found in contract ABI");
+            return;
+          }
+          
+          const data = contract.interface.encodeFunctionData(fragment, []);
+          console.log("Encoded function data:", data);
+          
+          const result = await provider.call({
+            to: config.contractAddress,
+            data
+          });
+          console.log("Raw result from contract:", result);
+          
+          if (result === "0x") {
+            console.error("❌ Contract returned empty data");
+          } else {
+            try {
+              const decoded = contract.interface.decodeFunctionResult(fragment, result);
+              console.log("Decoded result:", decoded);
+            } catch (decodeError) {
+              console.error("Failed to decode result:", decodeError);
+            }
+          }
+        } catch (lowLevelError) {
+          console.error("❌ Low-level call failed:", lowLevelError);
+        }
+      }
+    } catch (mainError) {
+      console.error("Diagnosis failed:", mainError);
+    } finally {
+      console.groupEnd();
+    }
+  };
+
   useEffect(() => {
-    loadMeetings().finally(() => setLoading(false));
+    diagnoseNetwork().then(() => {
+      loadMeetings().finally(() => setLoading(false));
+    });
   }, []);
 
   const onWalletSelect = async (wallet: any) => {

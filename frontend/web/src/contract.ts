@@ -6,7 +6,6 @@ import configJson from "./config.json";
 export const ABI = (abiJson as any).abi || abiJson;
 export const config = configJson;
 
-
 const retry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
   try {
     return await fn();
@@ -19,17 +18,41 @@ const retry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promis
   }
 };
 
-const getTestnetProvider = () => {
-  return new ethers.JsonRpcProvider(config.network, {
-    name: "sepolia",
-    chainId: 11155111,
-  });
+const getTestnetProvider = async () => {
+  const rpcUrls = [
+    "https://sepolia.infura.io/v3/96406da962744120afbe0cf64c8bd7b3",
+    "https://rpc.sepolia.org",
+    "https://rpc2.sepolia.org",
+    "https://eth-sepolia.public.blastapi.io"
+  ];
+  
+  for (const url of rpcUrls) {
+    try {
+      const provider = new ethers.JsonRpcProvider(url, {
+        name: "sepolia",
+        chainId: 11155111
+      });
+      
+      const blockNumber = await Promise.race([
+        provider.getBlockNumber(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("RPC timeout")), 10000) // 10秒超时
+        )
+      ]);
+      
+      console.log(`Connected to RPC ${url}, block: ${blockNumber}`);
+      return provider;
+    } catch (error) {
+      console.warn(`RPC ${url} failed: ${error.message}`);
+    }
+  }
+  
+  throw new Error("All RPC providers failed");
 };
 
-// get a read-only contract (fixed to testnet)
 export async function getContractReadOnly() {
   try {
-    const provider = getTestnetProvider();
+    const provider = await getTestnetProvider();
     const contract = new ethers.Contract(config.contractAddress, ABI, provider);
     
     const code = await retry(() => provider.getCode(config.contractAddress));
@@ -39,11 +62,11 @@ export async function getContractReadOnly() {
     
     return contract;
   } catch (error) {
+    console.error("Failed to create read-only contract:", error);
     return null;
   }
 }
 
-// get a contract connected to signer (for write operations)
 export async function getContractWithSigner() {
   if (!(window as any).ethereum) {
     throw new Error("No injected wallet");
@@ -59,7 +82,6 @@ export async function getContractWithSigner() {
   }
 }
 
-// helper: format address lowercase
 export function normAddr(a: string) { 
   return a ? a.toLowerCase() : a; 
 }
